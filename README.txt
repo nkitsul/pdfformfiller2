@@ -51,7 +51,8 @@ If you need to automate paperwork via WWW.
    VI. Add the renamed function name (from step V.) to the switch of line  of generate_pdf.php: 
 	switch ($_REQUEST['file']) {
 
-   VII. TO DEBUG: Look at the 'list', 'env_vars', "env_vars", 'dump_fields' that you can pass via the $_REQUEST['pff_op']:
+   VII. TO DEBUG: Look at the 'list', 'env_vars', "env_vars", 'dump_fields' commands that you can pass to 
+		that you can pass generate_pdf.php via the $_REQUEST['pff_op']:
 		line 24 of generate_pdf.php:
 			if ($_REQUEST['pff_op'] == 'list')
 	
