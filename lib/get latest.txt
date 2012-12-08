@@ -1,2 +1,2 @@
 
-Get latest iText library from: https://sourceforge.net/projects/itext/files/iText/
+Get latest iText library from: http://itextpdf.com/download.php
