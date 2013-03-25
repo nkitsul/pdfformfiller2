@@ -22,8 +22,6 @@
  * @version 1.0-alpha
  */
 
-package PdfFormFiller;
-
 
 import java.io.*;
 import java.io.OutputStream;
