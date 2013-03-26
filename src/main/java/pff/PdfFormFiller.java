@@ -1,4 +1,5 @@
-/** 
+package pff;
+/**
  * pdfformfiller 1.0-alpha is a command line utility for filling in Adobe PDF Forms. 
  * 
  * Well known pdftk utility can be used for filling in Adobe Pdf Forms. 
@@ -31,9 +32,7 @@ import com.itextpdf.text.pdf.PdfStamper;
 
 import java.io.*;
 import java.nio.charset.Charset;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Scanner;
 
 class WrongParamsExeption extends Exception {}
 
@@ -136,7 +135,8 @@ public class PdfFormFiller {
                     BaseFont bf = BaseFont.createFont(font_file, BaseFont.IDENTITY_H, true);
                     form.addSubstitutionFont(bf);
                 }
-                Map<String, String> fields = readFile(fields_filename, fields_encoding);
+                FormFieldsReader fieldsReader = new FormFieldsReader(getFieldSource(fields_filename, fields_encoding));
+                Map<String, String> fields = fieldsReader.read();
                 for (Map.Entry<String, String> entry : fields.entrySet()) {
                     if (verbose)
                         System.out.println("Field name = '" + entry.getKey() + "', New field value: '" + entry.getValue() + "'");
@@ -158,106 +158,19 @@ public class PdfFormFiller {
         }
     }
 
+    private static Readable getFieldSource(String filename, String encoding) throws FileNotFoundException, UnsupportedEncodingException {
+        if (filename != null)
+            return new InputStreamReader(new FileInputStream(filename), encoding);
+        else
+            return new InputStreamReader(System.in);
+    }
+
     public static void formList(AcroFields form){
             Map<String, AcroFields.Item> map = form.getFields();
             System.out.println("Field names:");
             for (Map.Entry<String, AcroFields.Item> entry : map.entrySet())
                 System.out.println(entry.getKey());
             System.out.println("END: Field names");
-    }
-
-    /**
-     * <var>filename</var> file in given encoding with the following format:<br><br>
-     *  On each line, one entry consists of <i>field name</i> followed by value of that field without any quotes. <br>
-     *  Any number of whitespaces allowed before <i>field name</i> and between <i>field name</i> and its value.<br>
-     *  In value, newline characters should be encoded as \n
-     *  and '\' characters should be escaped as "\\". <br>
-     *  For checkboxes, values are 'Yes'/'Off'."<br>
-     *
-     * @param filename name of file with fields and their values.
-     * @param encoding file encoding
-     * @return
-     * @throws java.io.FileNotFoundException
-     */
-    public static Map<String, String> readFile(String filename, String encoding)
-            throws java.io.FileNotFoundException, UnsupportedEncodingException {
-        Map<String, String> fields = new HashMap<String, String>();
-        String s, v;
-        String[] t;
-        Scanner input;
-
-        if (filename != null)
-            input = new Scanner(new BufferedReader(new InputStreamReader(new FileInputStream(filename), encoding)));
-        else
-            input = new Scanner(System.in);
-
-        int i = 1;
-        while(input.hasNext()) {
-            s = input.nextLine().trim();
-            t = s.split("\\s", 2);
-            if (t.length == 2){
-                // Unescape "\n":
-                v = unescape(t[1]);
-                fields.put(t[0], v);
-            } else {
-                if (verbose)
-                    System.out.println("Line " + i + ": " + s + "\nskipped.");
-            }
-            i++;
-        }
-        IOException ex = input.ioException();
-        if (ex != null)
-            ex.printStackTrace(System.out);
-
-        if (verbose)
-            System.out.println( (i - 1) + " lines from " + (filename == null ? "stdin" : filename) +  " parsed.");
-        input.close();
-        return fields;
-    }
-
-        /**
-     * Unescapes "\n", etc.
-     *
-     * @param str
-     * @return resuling string.
-     */
-    public static String unescape(String str){
-        String out = "";
-        char ch, next;
-
-        if (str == null) {
-            return null;
-        }
-        final int length = str.length();
-        for (int offset = 0; offset < length; ) {
-
-             ch = str.charAt(offset);
-
-            if ((ch == '\\') && ((offset + 1) < length)){
-                next = str.charAt(offset + 1);
-                switch (next){
-                    case '\\':
-                        out += '\\';
-                        break;
-                    case 'n':
-                        out += '\n';
-                        break;
-                    case 'p':
-                        // U+2029 utf-8 E280A9 : PARAGRAPH SEPARATOR PS
-                        out += '\u2029';
-                        break;
-                    default:{
-                        out += (ch + next);
-                    }
-                }
-                offset++;
-            } else
-                out += ch;
-
-            offset++;
-        }
-
-        return out;
     }
 
     private static String getDefaultEncoding() {
