@@ -167,7 +167,7 @@ public class PdfFormFiller {
     }
 
     /**
-     * <var>filename</var> file can be in UTF-8 and in of the following format:<br><br>
+     * <var>filename</var> file in given encoding with the following format:<br><br>
      *  On each line, one entry consists of <i>field name</i> followed by value of that field without any quotes. <br>
      *  Any number of whitespaces allowed before <i>field name</i> and between <i>field name</i> and its value.<br>
      *  In value, newline characters should be encoded as \n
