@@ -162,7 +162,7 @@ public class PdfFormFiller {
         if (filename != null)
             return new InputStreamReader(new FileInputStream(filename), encoding);
         else
-            return new InputStreamReader(System.in);
+            return new InputStreamReader(System.in, encoding);
     }
 
     public static void formList(AcroFields form){
