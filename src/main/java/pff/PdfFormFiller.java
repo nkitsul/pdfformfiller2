@@ -1,4 +1,5 @@
-/** 
+package pff;
+/**
  * pdfformfiller 1.0-alpha is a command line utility for filling in Adobe PDF Forms. 
  * 
  * Well known pdftk utility can be used for filling in Adobe Pdf Forms. 
@@ -22,19 +23,18 @@
  * @version 1.0-alpha
  */
 
-package PdfFormFiller;
 
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.pdf.AcroFields;
+import com.itextpdf.text.pdf.BaseFont;
+import com.itextpdf.text.pdf.PdfReader;
+import com.itextpdf.text.pdf.PdfStamper;
 
 import java.io.*;
-import java.io.OutputStream;
-import java.util.*;
+import java.nio.charset.Charset;
 import java.util.Map;
-import java.util.Scanner;
-import com.itextpdf.text.pdf.*;
-import com.itextpdf.text.*; 
-//import com.itextpdf.text.pdf.Item;
 
-class WrongParamsExeption extends Exception {};
+class WrongParamsExeption extends Exception {}
 
 public class PdfFormFiller {
     static Boolean verbose;
@@ -44,6 +44,7 @@ public class PdfFormFiller {
      */
     public static void main(String[] args){
         String document, operation = "fill", fields = null, font = null, output = null;
+        String encoding = getDefaultEncoding();
         Boolean flatten = false;
         verbose = false;
         
@@ -62,6 +63,10 @@ public class PdfFormFiller {
                     if (i + 1 >= args.length)
                         throw new WrongParamsExeption();
                     fields = args[++i];
+                }else if (args[i].equals("-e")){
+                    if (i + 1 >= args.length)
+                        throw new WrongParamsExeption();
+                    encoding = args[++i];
                 }else if (args[i].equals("-font")){
                     if (i + 1 >= args.length)
                         throw new WrongParamsExeption();
@@ -73,7 +78,7 @@ public class PdfFormFiller {
                 }
             }
 
-            fillPDFFile(document, output, fields, font, operation, flatten, verbose);
+            fillPDFFile(document, output, fields, encoding, font, operation, flatten, verbose);
  
         } catch (WrongParamsExeption e){
             if (e.getMessage() != null)
@@ -84,6 +89,7 @@ public class PdfFormFiller {
                                "    -v - verbose. Use to debug the fields_filename file. \n" +
                                "    -f fields_filename - name of file with the list of fields values to apply to document.pdf. \n" + 
                                "                         if ommited, stdin is used.\n" +
+                               "    -e encoding - encoding of the file with the list of fields values (current: " + encoding + ")\n" +
                                "    -font font_file - font to use. Needed UTF-8 support, e.g. cyrillic and non-latin alphabets.\n" + 
                                "    -flatten - Flatten pdf forms (convert them to text disabling editing in PDF Reader).\n" + 
                                "    output.pdf - name of output file. If omitted, the output if sent to stdout. \n\n" +
@@ -101,12 +107,12 @@ public class PdfFormFiller {
 
     }
 
-
     public static void fillPDFFile(String pdf_filename_in, String pdf_filename_out, String fields_filename){
-        fillPDFFile(pdf_filename_in, pdf_filename_out, fields_filename, null, "fill", false, false);
+        fillPDFFile(pdf_filename_in, pdf_filename_out, fields_filename, getDefaultEncoding(), null, "fill", false, false);
     }
-    
-    public static void fillPDFFile(String pdf_filename_in, String pdf_filename_out, String fields_filename, String font_file, String op, Boolean flatten, Boolean verbose) {
+
+    public static void fillPDFFile(String pdf_filename_in, String pdf_filename_out, String fields_filename,
+                                   String fields_encoding, String font_file, String op, Boolean flatten, Boolean verbose) {
         OutputStream os;
         PdfStamper stamp;
         try {
@@ -121,7 +127,7 @@ public class PdfFormFiller {
             stamp = new PdfStamper(reader, os, '\0');
 
             AcroFields form = stamp.getAcroFields();
-            
+
             if (op.equals("list")){
                 formList(form);
             } else {
@@ -129,7 +135,8 @@ public class PdfFormFiller {
                     BaseFont bf = BaseFont.createFont(font_file, BaseFont.IDENTITY_H, true);
                     form.addSubstitutionFont(bf);
                 }
-                Map<String, String> fields = readFile(fields_filename);
+                FormFieldsReader fieldsReader = new FormFieldsReader(getFieldSource(fields_filename, fields_encoding));
+                Map<String, String> fields = fieldsReader.read();
                 for (Map.Entry<String, String> entry : fields.entrySet()) {
                     if (verbose)
                         System.out.println("Field name = '" + entry.getKey() + "', New field value: '" + entry.getValue() + "'");
@@ -148,7 +155,14 @@ public class PdfFormFiller {
         } catch (DocumentException e) {
             System.err.println("Error while processing document: " + e.getMessage());
             System.exit(4);
-        } 
+        }
+    }
+
+    private static Readable getFieldSource(String filename, String encoding) throws FileNotFoundException, UnsupportedEncodingException {
+        if (filename != null)
+            return new InputStreamReader(new FileInputStream(filename), encoding);
+        else
+            return new InputStreamReader(System.in, encoding);
     }
 
     public static void formList(AcroFields form){
@@ -158,98 +172,9 @@ public class PdfFormFiller {
                 System.out.println(entry.getKey());
             System.out.println("END: Field names");
     }
-    
-    /**
-     * <var>filename</var> file can be in UTF-8 and in of the following format:<br><br>
-     *  On each line, one entry consists of <i>field name</i> followed by value of that field without any quotes. <br>
-     *  Any number of whitespaces allowed before <i>field name</i> and between <i>field name</i> and its value.<br>
-     *  In value, newline characters should be encoded as \n 
-     *  and '\' characters should be escaped as "\\". <br>
-     *  For checkboxes, values are 'Yes'/'Off'."<br>
-     * 
-     * @param filename name of file with fields and their values.
-     * @return
-     * @throws java.io.FileNotFoundException 
-     */
-    public static Map<String, String> readFile(String filename) throws java.io.FileNotFoundException{
-        Map<String, String> fields = new HashMap<String, String>();
-        String s, v;
-        String[] t;
-        Scanner input;
-        
-        if (filename != null)
-            //input = new Scanner(new File(filename));
-            input = new Scanner(new BufferedReader(new FileReader(filename)));
-        else
-            input = new Scanner(System.in);
-        
-        int i = 1;
-        while(input.hasNext()) {
-            s = input.nextLine().trim();
-            t = s.split("\\s", 2);
-            if (t.length == 2){
-                // Unescape "\n":
-                v = unescape(t[1]);
-                fields.put(t[0], v);
-            } else {
-                if (verbose)
-                    System.out.println("Line " + i + ": " + s + "\nskipped.");
-            }
-            i++;
-        }
-        IOException ex = input.ioException();
-        if (ex != null)
-            ex.printStackTrace(System.out);
 
-        if (verbose)
-            System.out.println( (i - 1) + " lines from " + (filename == null ? "stdin" : filename) +  " parsed.");
-        input.close();
-        return fields;
+    private static String getDefaultEncoding() {
+        return Charset.defaultCharset().name();
     }
-  
-        /**
-     * Unescapes "\n", etc.
-     * 
-     * @param str
-     * @return resuling string. 
-     */
-    public static String unescape(String str){
-        String out = "";
-        char ch, next;
-        
-        if (str == null) {
-            return null;
-        }
-        final int length = str.length();
-        for (int offset = 0; offset < length; ) {
 
-             ch = str.charAt(offset);
-            
-            if ((ch == '\\') && ((offset + 1) < length)){
-                next = str.charAt(offset + 1);
-                switch (next){
-                    case '\\':
-                        out += '\\';
-                        break;
-                    case 'n':
-                        out += '\n';
-                        break;
-                    case 'p':
-                        // U+2029 utf-8 E280A9 : PARAGRAPH SEPARATOR PS
-                        out += '\u2029';
-                        break;
-                    default:{
-                        out += (ch + next);
-                    }
-                }
-                offset++;
-            } else
-                out += ch;
-
-            offset++;
-        }
-
-        return out;
-    }
-    
 }
